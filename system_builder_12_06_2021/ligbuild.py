@@ -28,126 +28,93 @@ __doc__="""
         for pmxworkflow via Openeye. Reads data from excel
         input file.
         """
-__all__ = ['collect_excel_data', 'smi_to_sdf', 'RMSD_comparison',
+__all__ = ['collect_excel_data', 'collect_smi_data', 'smi_to_sdf', 'RMSD_comparison',
            'simple_sdf_to_mol2','rigid_overlay','struc_dir_setup',
            'sdf_to_mol2_multiconf','elf_pc_gen', 'ligand_reshaping'
            ]
 __version__ = '1.0'
 __author__ = 'M. Pitman'
 
-import os
-import sys
+import os, sys
 import subprocess as sub
 
-import openpyxl
 from datetime import datetime
 from openff.toolkit.topology import Molecule, Topology
 from openeye.oechem import *
 from openeye.oeomega import *
-
+#import openbabel
 import ligpose
 from build_receptor import *
 from oescripts import *
 
-# ----------------------------------------------------------------------
-# CHANGES NEEDED: CLEAN UP INITIAL TWO FUNCS THAT ARE LARGELY DEPRECATED
-# NOW
-
-
-def collect_excel_data(input_excel_file):
-    """ Reads in 'my_data.xlsx' """
-    try:
-        global MY_DATA, SHEET
-        MY_DATA = openpyxl.load_workbook(input_excel_file)
-        SHEET = MY_DATA['Sheet1']
-    except:
-        print("The argument for collect_excel_file is 'my_data.xlsx'.")
-        sys.exit()
-        
-    # Test that the shape of the lists are equal.
-    if len(SHEET['A']) != len(SHEET['B']):
-        print("Unequal number of ligand names and smiles *.xlsx. \
-              Assign a name to each smiles")
-        sys.exit()
-        
-    # Retrieve the SMILES from the my_data.xlsx.
-    global SMILES_COLLECTOR
-    SMILES_COLLECTOR = ""
-    for cell in SHEET['B']:
-        SMILES_COLLECTOR += str('-:"') + str(cell.value) + str('" ')
-          
-    # Retrieve the names of each ligands from the my_data.xlsx.
-    global NAME_COLLECTOR
-    NAME_COLLECTOR = ""
-    for cell in SHEET['A']:
-        NAME_COLLECTOR += str(cell.value) + str(' ')
-    print("Smiles and ligand names imported.")
-    
-    
-def smi_to_sdf(toolkit_to_use: str, input_excel_file: str) -> str:
-    """ Outputs a .sdf for each ligand using openeye or openbabel
-    example: smi_to_sdf('openbabel', 'my_data.xlsx')
+def collect_smi_data(input_smi_file):
     """
-    collect_excel_data(input_excel_file)
+    Reads in a .smi file with format: SMILES_STRING LIGAND_NAME
+    """
+    if not os.path.exists(input_smi_file):
+        raise FileNotFoundError(f"SMI file not found: {input_smi_file}")
+
+    smiles_list, names_list = [], []
+
+    with open(input_smi_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            smiles, name = line.split(maxsplit=1)
+            smiles_list.append(smiles)
+            names_list.append(name)
+
+    if not smiles_list:
+        print("Error: no ligands found in SMI file.")
+        sys.exit()
+
+    # Global state for legacy code
+    global _SMILES_LIST, _NAME_LIST
+    _SMILES_LIST = smiles_list
+    _NAME_LIST = names_list
+
+    # Legacy collectors
+    global SMILES_COLLECTOR, NAME_COLLECTOR
+    SMILES_COLLECTOR = "".join([f'-:"{s}" ' for s in smiles_list])
+    NAME_COLLECTOR   = "".join([f'{n} ' for n in names_list])
+
+    print(f"Imported {len(smiles_list)} ligands from SMI.")
+
+
+def smi_to_sdf(toolkit_to_use, input_file):
+    """ Outputs a .sdf for each ligand using openeye or openbabel"""
+    collect_smi_data(input_file)
     
     # Generate the .sdf container using obabel.
     if toolkit_to_use is str("openbabel"):
-        import openbabel
-        for cell in SHEET['B']:
-            smiles_string = str('-:"') + str(cell.value) + str('" ')
-            cell_shift = cell.row - 1
-            lig_name = SHEET['A'][cell_shift].value
-            conversion = str("obabel {} -osdf >  pre_{}.sdf --gen3d"
-                             .format(smiles_string, lig_name))
+       for smiles, lig_name in zip(_SMILES_LIST, _NAME_LIST):
+            smiles_string = f'-:"{smiles}" '
+            conversion = f"obabel {smiles_string} -osdf > pre_{lig_name}.sdf --gen3d"
             sub.call(conversion, shell=True)
-        print("Initial structural files pre_*.sdf generated for each ligand.")
-        
+    print("Initial structural files pre_*.sdf generated for each ligand.")
+
     # Generate the .sdf container using openeye. This structure is not aligned.
     if toolkit_to_use is str("openeye"):
-        for cell in SHEET['B']:
-            # Shift to cell A in *.xlsx to read ligand name.
-            cell_shift = cell.row - 1
+        for smiles, lig_name in zip(_SMILES_LIST, _NAME_LIST):
             global LIG_NAME
-            LIG_NAME = SHEET['A'][cell_shift].value
-            smiles = str(cell.value)
-            
-            #ifs = oemolistream()
-            #ifs.SetFormat(OEFormat_ISM)
-            #ifs.openstring(smiles)
-            ofs = oemolostream('pre_{}.sdf'.format(LIG_NAME))
+            LIG_NAME = lig_name
+
+            ofs = oemolostream(f'pre_{LIG_NAME}.sdf')
             mol = oechem.OEGraphMol()
-            #oechem.OESmilesToMol(mol, smiles)
-            '''
-            for atom in mol.GetAtoms():
-                if atom.IsChiral() and not atom.HasStereoSpecified(oechem.OEAtomStereo_Tetrahedral):
-                    print(1)
-                    v = []
-                    for neigh in atom.GetAtoms():
-                        v.append(neigh)
-                    atom.SetStereo(v, oechem.OEAtomStereo_Tetra, oechem.OEAtomStereo_Left)
-                    
-                    stereovalue = atom.GetStereo(v, OEAtomStereo_Tetrahedral)
 
-                    print("Atom:",atom.GetIdx()," ")
-
-                    if stereovalue == OEAtomStereo_RightHanded:
-                        print("Right Handed")
-                    elif stereovalue == OEAtomStereo_LeftHanded:
-                        print("Left Handed")
-            '''
             if (OEParseSmiles(mol, smiles) == 1):
-                # Add an isomeric canonical smiles code to the bottom
-                # of the .sdf file.
                 oechem.OEAssignAromaticFlags(mol)
                 OESetSDData(mol, "$SMI", OECreateIsoSmiString(mol))
                 OEWriteMolecule(ofs, mol)
             else:
-                sys.stderr.write("SMILES string for {} was invalid\n"
-                                .format(LIG_NAME))
+                sys.stderr.write(f"SMILES string for {LIG_NAME} was invalid\n")
                 sys.exit()
-            #ifs.close()
+
             ofs.close()
-        print("Initial structural files pre_*.sdf generated for each ligand.")
+
+        print("Initial structural files pre_*.sdf generated for each ligand.")   
+
 
 # Need to add an option for when stereochemistry is not known
 # Enumerate -> create multiple?
@@ -312,28 +279,22 @@ def ligand_docking(pdb_path, coords):
     
 #def ligand_reshaping(pdb_path, mtz_path, method):
 def ligand_reshaping(pdb_path, method):
-    """ Calculates the partial charges or each ligand using ELF conformer
+    """ Calculates the partial charges for each ligand using ELF conformer
     selection and then averaging over partial charges generated with
-    am1bcc. The poses the ligand using ligpose.py OEPosit() method.
+    am1bcc. Then positions the ligand using OEPosit(). 
     Outputs corrected ligand locations in *.sdf and *.mol2.
     """
-    for cell in SHEET['B']:
-        # Shift to cell A in *.xlsx to read ligand name.
-        cell_shift = cell.row - 1
+    for smiles, name in zip(_SMILES_LIST, _NAME_LIST):
         global LIG_NAME
-        LIG_NAME = SHEET['A'][cell_shift].value
-        smiles = str(cell.value)
-        #generate the charged molecule from expanded conformations, am1bcc
+        LIG_NAME = name
+        print(f'Preparing ligand {LIG_NAME} for flexible positioning using OEPosit().')
+        
         charged_molecule = elf_pc_gen(smiles)
-        #and align the charged_molecule
-        print('Preparing ligand {} for flexible positioning'
-              ' using OEPosit().'
-              .format(cell.value))
+
         ligpose.main(pdb_path, charged_molecule, method)
-        #ligpose.main(pdb_path, mtz_path, charged_molecule, method)
-        print('Ligand {} aligned onto receptor bound ligand'
-              .format(cell.value))
-              
+        # ligpose.main(pdb_path, mtz_path, charged_molecule, method)
+
+        print(f'Ligand {LIG_NAME} aligned onto receptor bound ligand')
 
 def rigid_overlay():
     ''' This function will do a rigid rotation,

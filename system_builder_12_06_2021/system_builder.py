@@ -57,13 +57,13 @@ from ligpose import Logger
 
 # Location of the input excel file with ligand names [col A] and
 # ligand smile + name in [col B].
-input_excel_file = '/Users/mpitman/work/gits/packages/Lomap-main/test/bace/BACE_compounds.xlsx'
+input_smi_file = '/data/homezvol1/acaldaru/updated_system_builder/system_builder_12_06_2021/test_files/test.smi'
 toolkit_to_use = 'openeye'
 
 # Reference complex structures for ligand positioning.
-#pdb_path = '/Users/mpitman/work/system_tests/Naf/stereo_test/6xk8.pdb'
+pdb_path = '/data/homezvol1/acaldaru/updated_system_builder/system_builder_12_06_2021/test_files/test.pdb'
 #mtz_path = '/Users/mpitman/work/system_tests/Nos/6xk8/6xk8_phases.mtz'
-#method = 'shapefit'
+method = 'shapefit'
 
 # The directory input variables
 system_dir = '/Users/mpitman/work/rfe/tests/6xk8'
@@ -77,14 +77,14 @@ sys.stdout = Logger()
 print("Log file generated at ligpose.log.")
 
 # Read in excel file.
-ligbuild.collect_excel_data(input_excel_file)
+ligbuild.collect_smi_data(input_smi_file)
 
 # Generate pre_*.sdf loops through mols in excel input.
-ligbuild.smi_to_sdf(toolkit_to_use, input_excel_file)
+#ligbuild.smi_to_sdf(toolkit_to_use, input_smi_file)
 
-# Perform flexibe ligand positioning and calculate ligand charges.
+# Perform flexible ligand positioning and calculate ligand charges.
 #ligbuild.ligand_reshaping(pdb_path, mtz_path, method)
-#ligbuild.ligand_reshaping(pdb_path, method)
+ligbuild.ligand_reshaping(pdb_path, method)
 
 # Generate the needed folders and move files to correct locations.
 # Existing redundant files will be backed up as reported on terminal
