@@ -146,123 +146,255 @@ def make_receptor(oedu_path):
     return rec_ofile
     
 
-def flexible_overlay(pdb_path, lig_in, method):
+#def flexible_overlay(pdb_path, lig_in, method):
 #def flexible_overlay(pdb_path, mtz_path, lig_in, method):
+#    '''
+#    Positions the ligand, sets options for OEPosit(),
+#    and outputs ligand and receptor structure files.
+#    '''
+    #du, du_ofile = build_du(pdb_path, mtz_path)
+#    du, du_ofile = build_du(pdb_path)
+#    rec_ofile = make_receptor(du_ofile)
+    
+    # Read output from make_receptor()
+#    ifs = oechem.oeifstream()
+#    if not ifs.open(rec_ofile):
+#        oechem.OEThrow.Fatal("Unable to open %s for reading"
+#                             % rec_ofile)
+                             
+#    du = oechem.OEDesignUnit()
+#    oechem.OEReadDesignUnit(ifs, du)
+#    if du.HasReceptor():
+#        print("Receptor built for the design unit, du.")
+#    if not du.HasReceptor():
+#        print("The design unit does not have a receptor built")
+        
+    # Set posing options.
+#    if method == 'shapefit':
+#        pose_method = oedocking.OEPositMethod_SHAPEFIT
+#    elif method == 'mcs':
+#        pose_method = oedocking.OEPositMethod_MCS
+#    elif method == 'hybrid':
+#        pose_method = oedocking.OEPositMethod_HYBRID
+#    elif method == 'fred':
+#        pose_method = oedocking.OEPositMethod_FRED
+#    else:
+#        print("Method argument required for flexible overlay."
+#              " args: pdb_path, mtz_path, lig_file, method"
+#              " methods(str): shapefit, mcs, hybrid, fred."
+#              )
+#    positOpts = oedocking.OEPositOptions()
+#    positOpts.SetFullConformationSearch(True)
+#    positOpts.SetPositMethods(pose_method)
+#    positOpts.SetIgnoreNitrogenStereo(True)
+    
+#    poser = oedocking.OEPosit(positOpts)
+#    poser.AddReceptor(du)
+    
+#    print("Posing will be generated with the method {} "
+#          "over a full conformational search, with ambiguous "
+#          "nitrogen stereocenters ignored.\n "
+#          .format(method))
+    
+#    ifs.close()
+          
+    # Read in the ligand to be positioned.
+#    try:
+#        lig_to_pose = oechem.OEMol(lig_in)
+#    except TypeError:
+#        ims = oechem.oemolistream(lig_in)
+#        lig_to_pose = oechem.OEMol()
+#        oechem.OEReadMolecule(ims, lig_to_pose)
+    
+#        if not ims.open(lig_in):
+#            oechem.OEThrow.Fatal("Unable to open %s for reading"
+#                                 % lig_in)
+#        ims.close()
+        
+#    if lig_to_pose.GetTitle() == '':
+#        lig_to_pose.SetTitle('posed_lig')
+#        print("The ligand to be posed did not have a title. "
+#              "Ligand title set to posed_lig.")
+
+    # Do the posing.
+    #print("Posing in progress ...")
+    #result = oedocking.OESinglePoseResult()
+    #poser_output = poser.Dock(result, lig_to_pose)
+
+    #if poser_output == oedocking.OEDockingReturnCode_Success:
+        # Parse the DU.
+    #    posed_du = result.GetDesignUnit()
+    #    posed_oemol = oechem.OEGraphMol()
+    #    posed_du.GetLigand(posed_oemol)
+    #    du_protein = oechem.OEGraphMol()
+    #    posed_du.GetProtein(du_protein)
+    #    posed_du.SetDoubleData(poser.GetName(), result.GetProbability())
+    #    print("\nThe ligand %s was successfully positioned."
+    #          % lig_to_pose.GetTitle())
+        
+        # Save *.sdf and *.mol2 files of the ligand.
+    #    extensions = ('sdf', 'mol2')
+    #    for i in extensions:
+    #        ofile = 'shapefit_{}.{}'.format(lig_to_pose.GetTitle(), i)
+    #        ostream = oechem.oemolostream()
+    #        ostream.open(ofile)
+    #        oechem.OEWriteMolecule(ostream, posed_oemol)
+    #        ostream.close()
+    #    lig_out = 'shapefit_{}.sdf'.format(lig_to_pose.GetTitle())
+        
+        # Save *.pdb of the receptor.
+    #    ofile_protein = 'receptor_protein.pdb'
+    #    ostream = oechem.oemolostream()
+    #    ostream.open(ofile_protein)
+    #    oechem.OEWriteMolecule(ostream, du_protein)
+    #    ostream.close()
+        
+        # Prints the posed ligand interactions with the protein.
+    #    print("--------------------------------------------------\n"
+    #          "List of interactions between the posed ligand\nand "
+    #          "the protein:"
+    #          "\n--------------------------------------------------")
+    #    du2liginters(posed_du)
+    #    
+    #else:
+    #    error_mes = oedocking.OEDockingReturnCodeGetName(poser_output)
+    #    oechem.OEThrow.Warning("%s: %s" % (lig_to_pose.GetTitle(),
+    #                           error_mes))
+
+    #return lig_out
+
+
+def flexible_overlay(pdb_path, lig_in, method):
     '''
     Positions the ligand, sets options for OEPosit(),
     and outputs ligand and receptor structure files.
+    Returns:
+        posed .sdf path on success
+        None on failure (instead of crashing)
     '''
-    #du, du_ofile = build_du(pdb_path, mtz_path)
+
+    # Build design unit from receptor PDB
     du, du_ofile = build_du(pdb_path)
     rec_ofile = make_receptor(du_ofile)
-    
-    # Read output from make_receptor()
+
+    # Read output receptor
     ifs = oechem.oeifstream()
     if not ifs.open(rec_ofile):
-        oechem.OEThrow.Fatal("Unable to open %s for reading"
-                             % rec_ofile)
-                             
+        oechem.OEThrow.Fatal("Unable to open %s for reading" % rec_ofile)
+
     du = oechem.OEDesignUnit()
     oechem.OEReadDesignUnit(ifs, du)
+    ifs.close()
+
     if du.HasReceptor():
         print("Receptor built for the design unit, du.")
-    if not du.HasReceptor():
-        print("The design unit does not have a receptor built")
-        
-    # Set posing options.
-    if method == 'shapefit':
-        pose_method = oedocking.OEPositMethod_SHAPEFIT
-    elif method == 'mcs':
-        pose_method = oedocking.OEPositMethod_MCS
-    elif method == 'hybrid':
-        pose_method = oedocking.OEPositMethod_HYBRID
-    elif method == 'fred':
-        pose_method = oedocking.OEPositMethod_FRED
     else:
-        print("Method argument required for flexible overlay."
-              " args: pdb_path, mtz_path, lig_file, method"
-              " methods(str): shapefit, mcs, hybrid, fred."
-              )
-    positOpts = oedocking.OEPositOptions()
-    positOpts.SetFullConformationSearch(True)
-    positOpts.SetPositMethods(pose_method)
-    positOpts.SetIgnoreNitrogenStereo(True)
-    
-    poser = oedocking.OEPosit(positOpts)
-    poser.AddReceptor(du)
-    
-    print("Posing will be generated with the method {} "
-          "over a full conformational search, with ambiguous "
-          "nitrogen stereocenters ignored.\n "
-          .format(method))
-    
-    ifs.close()
-          
-    # Read in the ligand to be positioned.
+        print("The design unit does not have a receptor built")
+
+    # Read in the ligand to be positioned
     try:
         lig_to_pose = oechem.OEMol(lig_in)
     except TypeError:
         ims = oechem.oemolistream(lig_in)
         lig_to_pose = oechem.OEMol()
         oechem.OEReadMolecule(ims, lig_to_pose)
-    
-        if not ims.open(lig_in):
-            oechem.OEThrow.Fatal("Unable to open %s for reading"
-                                 % lig_in)
         ims.close()
-        
+
     if lig_to_pose.GetTitle() == '':
         lig_to_pose.SetTitle('posed_lig')
         print("The ligand to be posed did not have a title. "
               "Ligand title set to posed_lig.")
 
-    # Do the posing.
     print("Posing in progress ...")
+
+    # First, try shapefit
+    opts = oedocking.OEPositOptions()
+    opts.SetFullConformationSearch(True)
+    opts.SetIgnoreNitrogenStereo(True)
+    opts.SetPositMethods(oedocking.OEPositMethod_SHAPEFIT)
+
+    poser = oedocking.OEPosit(opts)
+    poser.AddReceptor(du)
+
     result = oedocking.OESinglePoseResult()
-    poser_output = poser.Dock(result, lig_to_pose)
+    code = poser.Dock(result, lig_to_pose)
 
-    if poser_output == oedocking.OEDockingReturnCode_Success:
-        # Parse the DU.
-        posed_du = result.GetDesignUnit()
-        posed_oemol = oechem.OEGraphMol()
-        posed_du.GetLigand(posed_oemol)
-        du_protein = oechem.OEGraphMol()
-        posed_du.GetProtein(du_protein)
-        posed_du.SetDoubleData(poser.GetName(), result.GetProbability())
-        print("\nThe ligand %s was successfully positioned."
-              % lig_to_pose.GetTitle())
-        
-        # Save *.sdf and *.mol2 files of the ligand.
-        extensions = ('sdf', 'mol2')
-        for i in extensions:
-            ofile = 'shapefit_{}.{}'.format(lig_to_pose.GetTitle(), i)
-            ostream = oechem.oemolostream()
-            ostream.open(ofile)
-            oechem.OEWriteMolecule(ostream, posed_oemol)
-            ostream.close()
-        lig_out = 'shapefit_{}.sdf'.format(lig_to_pose.GetTitle())
-        
-        # Save *.pdb of the receptor.
-        ofile_protein = 'receptor_protein.pdb'
-        ostream = oechem.oemolostream()
-        ostream.open(ofile_protein)
-        oechem.OEWriteMolecule(ostream, du_protein)
-        ostream.close()
-        
-        # Prints the posed ligand interactions with the protein.
-        print("--------------------------------------------------\n"
-              "List of interactions between the posed ligand\nand "
-              "the protein:"
-              "\n--------------------------------------------------")
-        du2liginters(posed_du)
-        
+    if code == oedocking.OEDockingReturnCode_Success:
+        print("[pose] shapefit success")
     else:
-        error_mes = oedocking.OEDockingReturnCodeGetName(poser_output)
-        oechem.OEThrow.Warning("%s: %s" % (lig_to_pose.GetTitle(),
-                               error_mes))
+        print("[pose] shapefit failed: "
+              f"{oedocking.OEDockingReturnCodeGetName(code)}")
 
-    return lig_out
-  
+        # If shapefit fails, try hybrid 
+        opts = oedocking.OEPositOptions()
+        opts.SetFullConformationSearch(True)
+        opts.SetIgnoreNitrogenStereo(True)
+        opts.SetPositMethods(oedocking.OEPositMethod_HYBRID)
+
+        poser = oedocking.OEPosit(opts)
+        poser.AddReceptor(du)
+
+        result = oedocking.OESinglePoseResult()
+        code = poser.Dock(result, lig_to_pose)
+
+        if code == oedocking.OEDockingReturnCode_Success:
+            print("[pose] hybrid fallback success")
+        else:
+            print("[pose] hybrid fallback failed: "
+                  f"{oedocking.OEDockingReturnCodeGetName(code)}")
+
+            # Lstly, if hybrid also fails try fred for more traditional docking
+            opts = oedocking.OEPositOptions()
+            opts.SetFullConformationSearch(True)
+            opts.SetIgnoreNitrogenStereo(True)
+            opts.SetPositMethods(oedocking.OEPositMethod_FRED)
+
+            poser = oedocking.OEPosit(opts)
+            poser.AddReceptor(du)
+
+            result = oedocking.OESinglePoseResult()
+            code = poser.Dock(result, lig_to_pose)
+
+            if code == oedocking.OEDockingReturnCode_Success:
+                print("[pose] conformer fallback success")
+            else:
+                print("[pose] conformer fallback failed: "
+                      f"{oedocking.OEDockingReturnCodeGetName(code)}")
+                print(f"[pose] total failure → no poses for {lig_to_pose.GetTitle()}")
+                return None
+
+    # Success?
+    posed_du = result.GetDesignUnit()
+    posed_oemol = oechem.OEGraphMol()
+    posed_du.GetLigand(posed_oemol)
+    du_protein = oechem.OEGraphMol()
+    posed_du.GetProtein(du_protein)
+
+    title = lig_to_pose.GetTitle()
+
+    # Save posed ligand
+    for ext in ("sdf", "mol2"):
+        ofile = f"posed_{title}.{ext}"
+        ostream = oechem.oemolostream()
+        ostream.open(ofile)
+        oechem.OEWriteMolecule(ostream, posed_oemol)
+        ostream.close()
+
+    # Save receptor (optional for visualization/debug)
+    ostream = oechem.oemolostream("receptor_protein.pdb")
+    oechem.OEWriteMolecule(ostream, du_protein)
+    ostream.close()
+
+    print(f"[pose] final success for {title}")
+
+    # Optional: interaction fingerprints
+    try:
+        du2liginters(posed_du)
+    except Exception:
+        pass
+
+    return f"posed_{title}.sdf"
+
   
 def visualize_contacts(pdb_path, lig_out):
     '''

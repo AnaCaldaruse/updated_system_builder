@@ -354,23 +354,59 @@ def ligand_docking(pdb_path, coords):
 
     
 #def ligand_reshaping(pdb_path, mtz_path, method):
+#def ligand_reshaping(pdb_path, method):
+#    """ Calculates the partial charges for each ligand using ELF conformer
+#    selection and then averaging over partial charges generated with
+#    am1bcc. Then positions the ligand using OEPosit(). 
+#    Outputs corrected ligand locations in *.sdf and *.mol2.
+#    """
+#    for smiles, name in zip(_SMILES_LIST, _NAME_LIST):
+#        global LIG_NAME
+#        LIG_NAME = name
+#        print(f'Preparing ligand {LIG_NAME} for flexible positioning using OEPosit().')
+        
+#        charged_molecule = elf_pc_gen(smiles, name)
+
+#        ligpose.main(pdb_path, charged_molecule, method)
+        # ligpose.main(pdb_path, mtz_path, charged_molecule, method)
+
+#        print(f'Ligand {LIG_NAME} aligned onto receptor bound ligand')
+
+
 def ligand_reshaping(pdb_path, method):
     """ Calculates the partial charges for each ligand using ELF conformer
     selection and then averaging over partial charges generated with
-    am1bcc. Then positions the ligand using OEPosit(). 
+    am1bcc. Then positions the ligand using OEPosit().
     Outputs corrected ligand locations in *.sdf and *.mol2.
     """
+
+    failed_smiles = []
+
     for smiles, name in zip(_SMILES_LIST, _NAME_LIST):
         global LIG_NAME
         LIG_NAME = name
+
         print(f'Preparing ligand {LIG_NAME} for flexible positioning using OEPosit().')
-        
+
         charged_molecule = elf_pc_gen(smiles, name)
 
-        ligpose.main(pdb_path, charged_molecule, method)
-        # ligpose.main(pdb_path, mtz_path, charged_molecule, method)
+        lig_out = ligpose.main(pdb_path, charged_molecule, method)
+
+        # --- NEW: fallback failure handling ---
+        if lig_out is None:
+            print(f"[pose] failed for {name} -> logging & skipping\n")
+            failed_smiles.append((smiles, name))
+            continue
 
         print(f'Ligand {LIG_NAME} aligned onto receptor bound ligand')
+
+    # --- NEW: write failure file if any ---
+    if failed_smiles:
+        with open("failed_poses.smi", "w") as f:
+            for smi, nm in failed_smiles:
+                f.write(f"{smi} {nm}\n")
+        print(f"[pose] wrote {len(failed_smiles)} failed poses -> failed_poses.smi\n")
+
 
 def rigid_overlay():
     ''' This function will do a rigid rotation,
