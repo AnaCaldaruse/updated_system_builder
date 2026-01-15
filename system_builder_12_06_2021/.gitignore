@@ -1,0 +1,7 @@
+__pycache__/
+.DS_Store
+*.sdf
+*.mol2
+*.oedu
+*.svg
+*.log

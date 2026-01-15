@@ -66,9 +66,9 @@ pdb_path = '/data/homezvol1/acaldaru/updated_system_builder/system_builder_12_06
 method = 'shapefit'
 
 # The directory input variables
-system_dir = '/Users/mpitman/work/rfe/tests/6xk8'
-date_dir = '2021-11-03_6xk8'
-pmx_ligands_dir = '02_ligands'
+#system_dir = '/Users/mpitman/work/rfe/tests/6xk8'
+#date_dir = '2021-11-03_6xk8'
+#pmx_ligands_dir = '02_ligands'
 
 # ----------------------------------------------------------------------
 

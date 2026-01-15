@@ -40,12 +40,15 @@ import subprocess as sub
 
 from datetime import datetime
 from openff.toolkit.topology import Molecule, Topology
+from openff.toolkit.utils import RDKitToolkitWrapper
+from openeye.oechem import OEMol, OEHasConfIdx, OETriposAtomNames
 from openeye.oechem import *
 from openeye.oeomega import *
 #import openbabel
 import ligpose
 from build_receptor import *
 from oescripts import *
+
 
 def collect_smi_data(input_smi_file):
     """
@@ -118,80 +121,153 @@ def smi_to_sdf(toolkit_to_use, input_file):
 
 # Need to add an option for when stereochemistry is not known
 # Enumerate -> create multiple?
-def elf_pc_gen(smiles):
-    ''' Outputs a charged molecule using am1bcc method
-    and ELF conformer selection:
-    (NEW) Reads the smile code
-    (NEW) writes out temp sdf file
-    (1) expands conformations
-    (2) performs ELF conformer selection
-    (3) assigns partial charges to each ELF conformer
-    (4) outputs averaged charged molecule.
-    '''
+#def elf_pc_gen(smiles):
+#    ''' Outputs a charged molecule using am1bcc method
+#    and ELF conformer selection:
+#    (NEW) Reads the smile code
+#    (NEW) writes out temp sdf file
+#    (1) expands conformations
+#    (2) performs ELF conformer selection
+#    (3) assigns partial charges to each ELF conformer
+#    (4) outputs averaged charged molecule.
+#    '''
     
+def elf_pc_gen(smiles, name=None):
+    """
+    Modernization of previous code: Generate an AM1-BCC charged OEMol using modern
+    OpenFF conformer + ELF + averaging workflow without going between OEMol, OFFMol, and back to OEMol.
+
+    This assumes stereochemistry is already fully defined in the SMILES.
+    """
+
+    # Construct OFFMol from SMILES.
+    # RDKit backend for SMILES parsing to avoid strict OE stereo issues
+
+    off_mol = Molecule.from_smiles(
+            smiles, 
+            toolkit_registry=RDKitToolkitWrapper()
+    )
+
+    # Assign AM1-Wiberg fractional bond orders
+    Molecule.assign_fractional_bond_orders(
+        off_mol,
+        bond_order_model="am1-wiberg"
+    )
+
+    # Generate conformers (currently using RDKit but will need to change to OEOmega)
+    Molecule.generate_conformers(
+        off_mol,
+        n_conformers=100
+    )
+    print(f"[elf] Expanded to {off_mol.n_conformers} conformers")
+    print(f"[elf] reduction: {off_mol.n_conformers}/100")
+
+    # ELF conformer selection
+    Molecule.apply_elf_conformer_selection(
+        off_mol,
+        limit=10
+    )
+    print(f"[elf] ELF selected {off_mol.n_conformers} conformers")
+
+    if off_mol.n_conformers == 0:
+        raise RuntimeError("[elf] ELF returned 0 conformers")
+    
+    # Compute AM1-BCC charges over ELF conformers
+    # modern OpenFF will average across conformers
+    
+    off_mol.assign_partial_charges(
+        partial_charge_method="am1bcc",
+        use_conformers=off_mol.conformers
+    )
+    print("[elf] AM1-BCC charges computed (conformer-averaged)")
+    print(f"[elf] Net charge = {off_mol.total_charge}")
+
+    # Convert to OEMol only once 
+    # charged_oe = Molecule.to_openeye(off_mol)
+    
+    # --- Convert to OEMol (may have multiple conformers) ---
+    oe_multi = Molecule.to_openeye(off_mol)
+
+    # --- Collapse to a single ELF-selected conformer (legacy behavior) ---
+    first_conf = oe_multi.GetConf(OEHasConfIdx(0))
+    charged_oe = OEMol(first_conf)
+
+    # --- Legacy metadata restoration for ligpose / OEPosit compatibility ---
+    if name is None:
+        name = "lig"
+
+    charged_oe.SetTitle(name)
+    OESetSDData(charged_oe, "$SMI", smiles)
+    OESetSDData(charged_oe, "NAME", name)
+
+    # Assign Tripos atom names for MOL2 workflow
+    OETriposAtomNames(charged_oe)
+
+    return charged_oe
+
         
     # Convert to Openff molecule and generate conformations.
-    off_mol = Molecule.from_smiles(smiles)
+    #off_mol = Molecule.from_smiles(smiles)
 
     # Temporary for testing.
-    n = off_mol.name
-    off_mol.to_file('step1_off_{}.sdf'.format(n), file_format = "SDF")
+    #n = off_mol.name
+    #off_mol.to_file('step1_off_{}.sdf'.format(n), file_format = "SDF")
     
     #off_mol = Molecule.from_openeye(molecule)
-    Molecule.assign_fractional_bond_orders(off_mol, bond_order_model= "am1-wiberg")
+    #Molecule.assign_fractional_bond_orders(off_mol, bond_order_model= "am1-wiberg")
     
-    Molecule.generate_conformers(off_mol, n_conformers = 100)
+    #Molecule.generate_conformers(off_mol, n_conformers = 100)
     #Molecule.enumerate_stereoisomers(off_mol)
-    Molecule.generate_conformers(off_mol, n_conformers = 100)
-    print('Expanding molecule to {} conformations.'
-          .format(off_mol.n_conformers))
-    Molecule.apply_elf_conformer_selection(off_mol, limit = 10)
+    #Molecule.generate_conformers(off_mol, n_conformers = 100)
+    #print('Expanding molecule to {} conformations.'
+    #      .format(off_mol.n_conformers))
+    #Molecule.apply_elf_conformer_selection(off_mol, limit = 10)
     
     # Temporary for testing.
-    off_mol.to_file('step2_off_{}.sdf'.format(n), file_format = "SDF")
+    #off_mol.to_file('step2_off_{}.sdf'.format(n), file_format = "SDF")
     
-    print('Elf conformer selection chose {} conformations.'
-          .format(off_mol.n_conformers))
-    nconformers = off_mol.n_conformers
+    #print('Elf conformer selection chose {} conformations.'
+    #      .format(off_mol.n_conformers))
+    #nconformers = off_mol.n_conformers
         
     # Assign atom names to oe_mol if needed.
-    oe_mol = Molecule.to_openeye(off_mol)
-    assign_names = False
-    for atom in oe_mol.GetAtoms():
-        if atom.GetName()=='':
-            assign_names = True
-    if assign_names:
-        OETriposAtomNames(oe_mol)
+    #oe_mol = Molecule.to_openeye(off_mol)
+    #assign_names = False
+    #for atom in oe_mol.GetAtoms():
+    #    if atom.GetName()=='':
+    #        assign_names = True
+    #if assign_names:
+    #    OETriposAtomNames(oe_mol)
         
     # Set up storage for partial charges.
-    partial_charges = dict()
-    for atom in oe_mol.GetAtoms():
-        name = atom.GetName()
-        partial_charges[name] = 0.0
+    #partial_charges = dict()
+    #for atom in oe_mol.GetAtoms():
+    #    name = atom.GetName()
+    #    partial_charges[name] = 0.0
 
     # Iterate over conformations and calculate partial charges.
-    conf_i = 0
-    print('Calculating partial charges over ELF conformations...')
-    for conformation in oe_mol.GetConfs():
-        conf_i += 1
-        charged_molecule = OEMol(conformation)
-        off_cmol = Molecule.from_openeye(charged_molecule)
-        off_cmol.compute_partial_charges_am1bcc(use_conformers=off_mol.conformers
-                                                [conf_i-1:conf_i])
-        charged_molecule = Molecule.to_openeye(off_cmol)
+    #conf_i = 0
+    #print('Calculating partial charges over ELF conformations...')
+    #for conformation in oe_mol.GetConfs():
+    #    conf_i += 1
+    #    charged_molecule = OEMol(conformation)
+    #    off_cmol = Molecule.from_openeye(charged_molecule)
+    #    off_cmol.compute_partial_charges_am1bcc(use_conformers=off_mol.conformers
+    #                                            [conf_i-1:conf_i])
+    #    charged_molecule = Molecule.to_openeye(off_cmol)
            
         # Sum partial charges.
-        for atom in charged_molecule.GetAtoms():
-            name = atom.GetName()
-            partial_charges[name] += atom.GetPartialCharge()
+    #    for atom in charged_molecule.GetAtoms():
+    #        name = atom.GetName()
+    #        partial_charges[name] += atom.GetPartialCharge()
            
     # Calculate average partial charge and output charged_molecule.
-    charged_molecule = OEMol(oe_mol.GetConf(OEHasConfIdx(0)))
-    for atom in charged_molecule.GetAtoms():
-        name = atom.GetName()
-        atom.SetPartialCharge(partial_charges[name] / nconformers)
+    #charged_molecule = OEMol(oe_mol.GetConf(OEHasConfIdx(0)))
+    #for atom in charged_molecule.GetAtoms():
+    #    name = atom.GetName()
+    #    atom.SetPartialCharge(partial_charges[name] / nconformers)
     
-    return charged_molecule
+    #return charged_molecule
 
 
 # Add in the new way to calc partial charges
@@ -289,7 +365,7 @@ def ligand_reshaping(pdb_path, method):
         LIG_NAME = name
         print(f'Preparing ligand {LIG_NAME} for flexible positioning using OEPosit().')
         
-        charged_molecule = elf_pc_gen(smiles)
+        charged_molecule = elf_pc_gen(smiles, name)
 
         ligpose.main(pdb_path, charged_molecule, method)
         # ligpose.main(pdb_path, mtz_path, charged_molecule, method)
