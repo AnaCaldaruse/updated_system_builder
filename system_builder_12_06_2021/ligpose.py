@@ -463,13 +463,17 @@ class Logger(object):
 def main(pdb_path, lig_in, method):
     #lig_out = flexible_overlay(pdb_path, mtz_path, lig_in, method)
     lig_out = flexible_overlay(pdb_path, lig_in, method)
+    if lig_out is None:
+        return None
+
     visualize_contacts(pdb_path, lig_out)
     # Remove the generated binary files.
     to_clean = [os.path.basename(pdb_path)[:-4] + "_DU.oedu",
                 'receptor_out.oedu'
                 ]
     clean_up(to_clean)
-
+    
+    return lig_out
 
 if __name__ == '__main__':
     main()
