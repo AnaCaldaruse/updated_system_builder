@@ -121,28 +121,16 @@ def smi_to_sdf(toolkit_to_use, input_file):
 
 # Need to add an option for when stereochemistry is not known
 # Enumerate -> create multiple?
-#def elf_pc_gen(smiles):
-#    ''' Outputs a charged molecule using am1bcc method
-#    and ELF conformer selection:
-#    (NEW) Reads the smile code
-#    (NEW) writes out temp sdf file
-#    (1) expands conformations
-#    (2) performs ELF conformer selection
-#    (3) assigns partial charges to each ELF conformer
-#    (4) outputs averaged charged molecule.
-#    '''
-    
 def elf_pc_gen(smiles, name=None):
     """
     Modernization of previous code: Generate an AM1-BCC charged OEMol using modern
     OpenFF conformer + ELF + averaging workflow without going between OEMol, OFFMol, and back to OEMol.
 
-    This assumes stereochemistry is already fully defined in the SMILES.
+    This assumes stereochemistry is already fully enumerated before this step.
     """
 
     # Construct OFFMol from SMILES.
     # RDKit backend for SMILES parsing to avoid strict OE stereo issues
-
     off_mol = Molecule.from_smiles(
             smiles, 
             toolkit_registry=RDKitToolkitWrapper()
@@ -173,8 +161,7 @@ def elf_pc_gen(smiles, name=None):
         raise RuntimeError("[elf] ELF returned 0 conformers")
     
     # Compute AM1-BCC charges over ELF conformers
-    # modern OpenFF will average across conformers
-    
+    # modern OpenFF will average across conformers  
     off_mol.assign_partial_charges(
         partial_charge_method="am1bcc",
         use_conformers=off_mol.conformers
@@ -182,9 +169,6 @@ def elf_pc_gen(smiles, name=None):
     print("[elf] AM1-BCC charges computed (conformer-averaged)")
     print(f"[elf] Net charge = {off_mol.total_charge}")
 
-    # Convert to OEMol only once 
-    # charged_oe = Molecule.to_openeye(off_mol)
-    
     # --- Convert to OEMol (may have multiple conformers) ---
     oe_multi = Molecule.to_openeye(off_mol)
 
@@ -205,78 +189,12 @@ def elf_pc_gen(smiles, name=None):
 
     return charged_oe
 
-        
-    # Convert to Openff molecule and generate conformations.
-    #off_mol = Molecule.from_smiles(smiles)
-
-    # Temporary for testing.
-    #n = off_mol.name
-    #off_mol.to_file('step1_off_{}.sdf'.format(n), file_format = "SDF")
-    
-    #off_mol = Molecule.from_openeye(molecule)
-    #Molecule.assign_fractional_bond_orders(off_mol, bond_order_model= "am1-wiberg")
-    
-    #Molecule.generate_conformers(off_mol, n_conformers = 100)
-    #Molecule.enumerate_stereoisomers(off_mol)
-    #Molecule.generate_conformers(off_mol, n_conformers = 100)
-    #print('Expanding molecule to {} conformations.'
-    #      .format(off_mol.n_conformers))
-    #Molecule.apply_elf_conformer_selection(off_mol, limit = 10)
-    
-    # Temporary for testing.
-    #off_mol.to_file('step2_off_{}.sdf'.format(n), file_format = "SDF")
-    
-    #print('Elf conformer selection chose {} conformations.'
-    #      .format(off_mol.n_conformers))
-    #nconformers = off_mol.n_conformers
-        
-    # Assign atom names to oe_mol if needed.
-    #oe_mol = Molecule.to_openeye(off_mol)
-    #assign_names = False
-    #for atom in oe_mol.GetAtoms():
-    #    if atom.GetName()=='':
-    #        assign_names = True
-    #if assign_names:
-    #    OETriposAtomNames(oe_mol)
-        
-    # Set up storage for partial charges.
-    #partial_charges = dict()
-    #for atom in oe_mol.GetAtoms():
-    #    name = atom.GetName()
-    #    partial_charges[name] = 0.0
-
-    # Iterate over conformations and calculate partial charges.
-    #conf_i = 0
-    #print('Calculating partial charges over ELF conformations...')
-    #for conformation in oe_mol.GetConfs():
-    #    conf_i += 1
-    #    charged_molecule = OEMol(conformation)
-    #    off_cmol = Molecule.from_openeye(charged_molecule)
-    #    off_cmol.compute_partial_charges_am1bcc(use_conformers=off_mol.conformers
-    #                                            [conf_i-1:conf_i])
-    #    charged_molecule = Molecule.to_openeye(off_cmol)
-           
-        # Sum partial charges.
-    #    for atom in charged_molecule.GetAtoms():
-    #        name = atom.GetName()
-    #        partial_charges[name] += atom.GetPartialCharge()
-           
-    # Calculate average partial charge and output charged_molecule.
-    #charged_molecule = OEMol(oe_mol.GetConf(OEHasConfIdx(0)))
-    #for atom in charged_molecule.GetAtoms():
-    #    name = atom.GetName()
-    #    atom.SetPartialCharge(partial_charges[name] / nconformers)
-    
-    #return charged_molecule
-
-
 # Add in the new way to calc partial charges
 def sdf_to_mol2_multiconf():
     """ Calculates the partial charges of the structural files
     and prints *.mol2 for each ligand. """
     for cell in SHEET['A']:
         if (os.path.isfile('pre_{}.sdf'.format(cell.value)) == True):
-            #infile = '/Users/mpitman/work/system_tests/Naf/stereo_test/subtest/step1_off_stereo1.sdf'
             infile = 'pre_{}.sdf'.format(cell.value)
             ifs = oemolistream(infile)
             outfile = 'pre_{}.mol2'.format(cell.value)
@@ -352,28 +270,8 @@ def ligand_docking(pdb_path, coords):
         print('Ligand {} aligned onto receptor bound ligand'
               .format(cell.value))
 
-    
-#def ligand_reshaping(pdb_path, mtz_path, method):
-#def ligand_reshaping(pdb_path, method):
-#    """ Calculates the partial charges for each ligand using ELF conformer
-#    selection and then averaging over partial charges generated with
-#    am1bcc. Then positions the ligand using OEPosit(). 
-#    Outputs corrected ligand locations in *.sdf and *.mol2.
-#    """
-#    for smiles, name in zip(_SMILES_LIST, _NAME_LIST):
-#        global LIG_NAME
-#        LIG_NAME = name
-#        print(f'Preparing ligand {LIG_NAME} for flexible positioning using OEPosit().')
-        
-#        charged_molecule = elf_pc_gen(smiles, name)
 
-#        ligpose.main(pdb_path, charged_molecule, method)
-        # ligpose.main(pdb_path, mtz_path, charged_molecule, method)
-
-#        print(f'Ligand {LIG_NAME} aligned onto receptor bound ligand')
-
-
-def ligand_reshaping(pdb_path, method):
+def ligand_reshaping(pdb_path, method, generate_svgs=True):
     """ Calculates the partial charges for each ligand using ELF conformer
     selection and then averaging over partial charges generated with
     am1bcc. Then positions the ligand using OEPosit().
@@ -390,9 +288,9 @@ def ligand_reshaping(pdb_path, method):
 
         charged_molecule = elf_pc_gen(smiles, name)
 
-        lig_out = ligpose.main(pdb_path, charged_molecule, method)
+        lig_out = ligpose.main(pdb_path, charged_molecule, method, generate_svgs=generate_svgs)
 
-        # --- NEW: fallback failure handling ---
+        # fallback failure handling
         if lig_out is None:
             print(f"[pose] failed for {name} -> logging & skipping\n")
             failed_smiles.append((smiles, name))
@@ -400,7 +298,7 @@ def ligand_reshaping(pdb_path, method):
 
         print(f'Ligand {LIG_NAME} aligned onto receptor bound ligand')
 
-    # --- NEW: write failure file if any ---
+    # write failure file if any
     if failed_smiles:
         with open("failed_poses.smi", "w") as f:
             for smi, nm in failed_smiles:
@@ -417,7 +315,7 @@ def rigid_overlay():
     working_dir = os.getcwd()
     os.makedirs(f'tmp_outputs', exist_ok=True)
     
-    # Read in the bound complex reference structure
+    # read in the bound complex reference structure
     complex_in = oemolistream("complex.pdb")
     mol = OEGraphMol()
     OEReadMolecule(complex_in, mol)
@@ -427,7 +325,7 @@ def rigid_overlay():
     wat = OEGraphMol()
     other = OEGraphMol()
 
-    # Extract from the complex pdb file the subparts
+    # extract from the complex pdb file the subparts
     OESplitMolComplex(lig, prot, wat, other, mol)
     ofs = oemolostream("ligand.pdb")
     OEWriteConstMolecule(ofs, lig)
